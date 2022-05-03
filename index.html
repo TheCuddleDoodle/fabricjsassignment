@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <title>Fabric.js Canvas Zoom and Pan</title>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="googlebot" content="noindex, nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+  <script
+    type="text/javascript"
+    src="/js/lib/dummy.js"
+    
+  ></script>
+
+    <link rel="stylesheet" type="text/css" href="/css/result-light.css">
+
+      <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/1.7.1/fabric.min.js"></script>
+
+  <style id="compiled-css" type="text/css">
+    .button {
+  border: none;
+  color: white;
+  padding: 15px 32px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  margin: 4px 2px;
+  cursor: pointer;
+}
+
+      #my-image{display:none;}
+    /* EOS */
+  </style>
+
+  <script id="insert"></script>
+
+
+</head>
+<body>
+    <body>
+  <canvas id="canvas" style="border: 1px solid #cccccc"></canvas>
+  <img src="https://image.shutterstock.com/z/stock-photo--micro-peacock-feather-hd-image-best-texture-background-colourful-indian-peacock-feather-1127238599.jpg" id="my-image" width="500px" height="500px">
+</body>
+
+
+    <script type="text/javascript">//<![CDATA[
+
+
+var Direction = {
+  LEFT: 0,
+  UP: 1,
+  RIGHT: 2,
+  DOWN: 3
+};
+
+var zoomLevel = 0;
+var zoomLevelMin = 0;
+var zoomLevelMax = 3;
+
+var shiftKeyDown = false;
+var mouseDownPoint = null;
+
+var canvas = new fabric.Canvas('canvas', {
+  width: 1280,
+  height: 780,
+  selectionKey: 'ctrlKey'
+});
+
+
+var imgElement = document.getElementById('my-image');
+var imgInstance = new fabric.Image(imgElement, {
+  left: 100,
+  top: 100,
+  angle: 0,
+  opacity: 0.75,
+  
+});
+canvas.add(imgInstance);
+
+canvas.on('mouse:down', function(options) {
+  var pointer = canvas.getPointer(options.e, true);
+  mouseDownPoint = new fabric.Point(pointer.x, pointer.y);
+});
+canvas.on('mouse:up', function(options) {
+  mouseDownPoint = null;
+});
+canvas.on('mouse:move', function(options) {
+  if (shiftKeyDown && mouseDownPoint) {
+    var pointer = canvas.getPointer(options.e, true);
+    var mouseMovePoint = new fabric.Point(pointer.x, pointer.y);
+    canvas.relativePan(mouseMovePoint.subtract(mouseDownPoint));
+    mouseDownPoint = mouseMovePoint;
+    keepPositionInBounds(canvas);
+  }
+});
+fabric.util.addListener(document.body, 'keydown', function(options) {
+  if (options.repeat) {
+    return;
+  }
+  var key = options.which || options.keyCode; // key detection
+  if (key == 16) { // handle Shift key
+    canvas.defaultCursor = 'move';
+    canvas.selection = false;
+    shiftKeyDown = true;
+  } else if (key === 37) { // handle Left key
+    move(Direction.LEFT);
+  } else if (key === 38) { // handle Up key
+    move(Direction.UP);
+  } else if (key === 39) { // handle Right key
+    move(Direction.RIGHT);
+  } else if (key === 40) { // handle Down key
+    move(Direction.DOWN);
+  }
+});
+fabric.util.addListener(document.body, 'keyup', function(options) {
+  var key = options.which || options.keyCode; // key detection
+  if (key == 16) { // handle Shift key
+    canvas.defaultCursor = 'default';
+    canvas.selection = true;
+    shiftKeyDown = false;
+  }
+});
+jQuery('.canvas-container').on('mousewheel', function(options) {
+  var delta = options.originalEvent.wheelDelta;
+  if (delta != 0) {
+    var pointer = canvas.getPointer(options.e, true);
+    var point = new fabric.Point(pointer.x, pointer.y);
+    if (delta > 0) {
+      zoomIn(point);
+    } else if (delta < 0) {
+      zoomOut(point);
+    }
+  }
+});
+
+function move(direction) {
+  switch (direction) {
+    case Direction.LEFT:
+      canvas.relativePan(new fabric.Point(-10 * canvas.getZoom(), 0));
+      break;
+    case Direction.UP:
+      canvas.relativePan(new fabric.Point(0, -10 * canvas.getZoom()));
+      break;
+    case Direction.RIGHT:
+      canvas.relativePan(new fabric.Point(10 * canvas.getZoom(), 0));
+      break;
+    case Direction.DOWN:
+      canvas.relativePan(new fabric.Point(0, 10 * canvas.getZoom()));
+      break;
+  }
+  keepPositionInBounds(canvas);
+}
+
+
+function zoomIn(point) {
+  if (zoomLevel < zoomLevelMax) {
+    zoomLevel++;
+    canvas.zoomToPoint(point, Math.pow(2, zoomLevel));
+    keepPositionInBounds(canvas);
+  }
+}
+
+function zoomOut(point) {
+  if (zoomLevel > zoomLevelMin) {
+    zoomLevel--;
+    canvas.zoomToPoint(point, Math.pow(2, zoomLevel));
+    keepPositionInBounds(canvas);
+  }
+}
+
+function keepPositionInBounds() {
+  var zoom = canvas.getZoom();
+  var xMin = (2 - zoom) * canvas.getWidth() / 2;
+  var xMax = zoom * canvas.getWidth() / 2;
+  var yMin = (2 - zoom) * canvas.getHeight() / 2;
+  var yMax = zoom * canvas.getHeight() / 2;
+
+  var point = new fabric.Point(canvas.getWidth() / 2, canvas.getHeight() / 2);
+  var center = fabric.util.transformPoint(point, canvas.viewportTransform);
+
+  var clampedCenterX = clamp(center.x, xMin, xMax);
+  var clampedCenterY = clamp(center.y, yMin, yMax);
+
+  var diffX = clampedCenterX - center.x;
+  var diffY = clampedCenterY - center.y;
+
+  if (diffX != 0 || diffY != 0) {
+    canvas.relativePan(new fabric.Point(diffX, diffY));
+  }
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(value, max));
+}
+
+
+
+  //]]></script>
+
+  <script>
+    // tell the embed parent frame the height of the content
+    if (window.parent && window.parent.parent){
+      window.parent.parent.postMessage(["resultsFrame", {
+        height: document.body.getBoundingClientRect().height,
+        slug: "23ga65uj"
+      }], "*")
+    }
+
+    // always overwrite window.name, in case users try to set it manually
+    window.name = "result"
+  </script>
+
+<button class="button button1">Green</button>
+</body>
+</html>
